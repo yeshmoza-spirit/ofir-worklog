@@ -19,7 +19,7 @@ import type {
 } from "../types";
 import { generateId } from "../utils/id";
 import { calcAmountAgorot } from "../utils/money";
-import { calcDurationMinutes, todayIsoDate } from "../utils/time";
+import { calcDurationMinutes, isSaturday, todayIsoDate } from "../utils/time";
 
 function ensureSeeded(): void {
   if (localRepository.isSeeded()) return;
@@ -28,7 +28,17 @@ function ensureSeeded(): void {
   localRepository.saveGroups(demo.groups);
   localRepository.saveSessions(demo.sessions);
   localRepository.saveBatches(demo.batches);
+  localRepository.saveLessonTypeCatalog(demo.lessonTypeCatalog);
   localRepository.markSeeded();
+}
+
+/** Rate to suggest for a workplace given a session date: the Saturday
+ * override when set and the date falls on Saturday, else the default. */
+export function suggestedRateAgorot(workplace: Workplace, workDate: string): number {
+  if (isSaturday(workDate) && workplace.saturdayRateAgorot != null) {
+    return workplace.saturdayRateAgorot;
+  }
+  return workplace.defaultRateAgorot;
 }
 
 // ---------- Workplaces ----------
@@ -99,17 +109,55 @@ export function saveGroup(
 ): Group {
   const all = localRepository.getGroups();
   const now = new Date().toISOString();
+  let result: Group;
   if (input.id) {
     const idx = all.findIndex((g) => g.id === input.id);
     const updated: Group = { ...all[idx], ...input, id: input.id, updatedAt: now };
     all[idx] = updated;
     localRepository.saveGroups(all);
-    return updated;
+    result = updated;
+  } else {
+    const created: Group = { ...input, id: generateId(), createdAt: now, updatedAt: now };
+    all.push(created);
+    localRepository.saveGroups(all);
+    result = created;
   }
-  const created: Group = { ...input, id: generateId(), createdAt: now, updatedAt: now };
-  all.push(created);
-  localRepository.saveGroups(all);
-  return created;
+  // Every group name a workplace has ever used becomes reusable for every
+  // other workplace too, so a new client never requires re-typing
+  // "פילאטיס" / "מחול" / etc. from scratch.
+  addLessonTypeToCatalog(result.name);
+  return result;
+}
+
+// ---------- Lesson type catalog (shared across all workplaces) ----------
+
+export function getLessonTypeNames(includeInactive = false): string[] {
+  ensureSeeded();
+  const all = localRepository.getLessonTypeCatalog();
+  const filtered = includeInactive ? all : all.filter((e) => e.active);
+  return filtered.map((e) => e.name).sort((a, b) => a.localeCompare(b, "he"));
+}
+
+export function addLessonTypeToCatalog(name: string): void {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const all = localRepository.getLessonTypeCatalog();
+  const existing = all.find((e) => e.name === trimmed);
+  if (existing) {
+    if (!existing.active) existing.active = true;
+    localRepository.saveLessonTypeCatalog(all);
+    return;
+  }
+  all.push({ name: trimmed, active: true });
+  localRepository.saveLessonTypeCatalog(all);
+}
+
+export function setLessonTypeCatalogActive(name: string, active: boolean): void {
+  const all = localRepository.getLessonTypeCatalog();
+  const entry = all.find((e) => e.name === name);
+  if (!entry) return;
+  entry.active = active;
+  localRepository.saveLessonTypeCatalog(all);
 }
 
 export function setGroupActive(id: string, active: boolean): void {
@@ -355,7 +403,7 @@ export function startTimer(workplaceId: string, groupId: string | null): ActiveT
     groupId: group?.id ?? null,
     workplaceNameSnapshot: workplace.name,
     groupNameSnapshot: group?.name ?? null,
-    rateAgorot: workplace.defaultRateAgorot,
+    rateAgorot: suggestedRateAgorot(workplace, todayIsoDate()),
     rateType: workplace.rateType,
     startedAt: new Date().toISOString(),
     endedAt: null,
@@ -431,6 +479,7 @@ export function importBackup(json: string): void {
     groups: data.groups,
     sessions: data.sessions,
     batches: data.batches ?? [],
+    lessonTypeCatalog: data.lessonTypeCatalog ?? [],
   });
   localRepository.markSeeded();
 }

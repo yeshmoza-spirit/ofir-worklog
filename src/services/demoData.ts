@@ -1,4 +1,4 @@
-import type { BillingBatch, Group, Workplace, WorkSession } from "../types";
+import type { BillingBatch, Group, LessonTypeCatalogEntry, Workplace, WorkSession } from "../types";
 import { generateId } from "../utils/id";
 import { calcAmountAgorot } from "../utils/money";
 import { calcDurationMinutes, todayIsoDate } from "../utils/time";
@@ -72,15 +72,29 @@ export function buildDemoData(): {
   groups: Group[];
   sessions: WorkSession[];
   batches: BillingBatch[];
+  lessonTypeCatalog: LessonTypeCatalogEntry[];
 } {
   const move = makeWorkplace("סטודיו Move", 15000, "hourly");
+  move.saturdayRateAgorot = 20000; // demonstrates the Saturday-rate override
   const alon = makeWorkplace("בית ספר אלון", 18000, "hourly");
   const privateLesson = makeWorkplace("שיעור פרטי", 20000, "per_session");
+
+  // A past client, already archived, to demonstrate the archive section.
+  const oldStudio = makeWorkplace("סטודיו פעימה (סגור)", 14000, "hourly");
+  oldStudio.active = false;
 
   const moveMorning = makeGroup(move.id, "פילאטיס בוקר");
   const moveEvening = makeGroup(move.id, "פילאטיס ערב");
   const alonC = makeGroup(alon.id, "כיתה ג׳");
   const alonD = makeGroup(alon.id, "כיתה ד׳");
+
+  const lessonTypeCatalog: LessonTypeCatalogEntry[] = [
+    { name: "פילאטיס בוקר", active: true },
+    { name: "פילאטיס ערב", active: true },
+    { name: "מחול", active: true },
+    { name: "כיתה ג׳", active: true },
+    { name: "כיתה ד׳", active: true },
+  ];
 
   const today = todayIsoDate();
   const [y, m] = today.split("-");
@@ -104,9 +118,10 @@ export function buildDemoData(): {
   privateLesson.lastUsedAt = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString();
 
   return {
-    workplaces: [move, alon, privateLesson],
+    workplaces: [move, alon, privateLesson, oldStudio],
     groups: [moveMorning, moveEvening, alonC, alonD],
     sessions,
     batches: [],
+    lessonTypeCatalog,
   };
 }

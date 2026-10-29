@@ -4,7 +4,14 @@
 // repository later means writing one file with the same exported shape
 // and changing a single import in worklogService.ts.
 
-import type { ActiveTimer, BillingBatch, Group, Workplace, WorkSession } from "../types";
+import type {
+  ActiveTimer,
+  BillingBatch,
+  Group,
+  LessonTypeCatalogEntry,
+  Workplace,
+  WorkSession,
+} from "../types";
 
 const KEYS = {
   workplaces: "owl:workplaces",
@@ -13,6 +20,7 @@ const KEYS = {
   batches: "owl:batches",
   seeded: "owl:seeded",
   activeTimer: "owl:activeTimer",
+  lessonTypeCatalog: "owl:lessonTypeCatalog",
 } as const;
 
 function readAll<T>(key: string): T[] {
@@ -81,12 +89,20 @@ export const localRepository = {
     }
   },
 
+  getLessonTypeCatalog(): LessonTypeCatalogEntry[] {
+    return readAll<LessonTypeCatalogEntry>(KEYS.lessonTypeCatalog);
+  },
+  saveLessonTypeCatalog(items: LessonTypeCatalogEntry[]): void {
+    writeAll(KEYS.lessonTypeCatalog, items);
+  },
+
   exportAll() {
     return {
       workplaces: this.getWorkplaces(),
       groups: this.getGroups(),
       sessions: this.getSessions(),
       batches: this.getBatches(),
+      lessonTypeCatalog: this.getLessonTypeCatalog(),
       exportedAt: new Date().toISOString(),
     };
   },
@@ -96,10 +112,12 @@ export const localRepository = {
     groups: Group[];
     sessions: WorkSession[];
     batches: BillingBatch[];
+    lessonTypeCatalog?: LessonTypeCatalogEntry[];
   }): void {
     this.saveWorkplaces(data.workplaces);
     this.saveGroups(data.groups);
     this.saveSessions(data.sessions);
     this.saveBatches(data.batches);
+    this.saveLessonTypeCatalog(data.lessonTypeCatalog ?? []);
   },
 };

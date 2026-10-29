@@ -85,6 +85,12 @@ export function monthKeyFromDate(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
+/** True when the given "YYYY-MM-DD" date falls on Saturday. */
+export function isSaturday(isoDate: string): boolean {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay() === 6;
+}
+
 export function currentMonthKey(): string {
   return todayIsoDate().slice(0, 7);
 }

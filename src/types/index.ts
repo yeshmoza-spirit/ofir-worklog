@@ -9,11 +9,20 @@ export interface Workplace {
   name: string;
   defaultRateAgorot: number;
   rateType: RateType;
+  /** Optional override applied when a session's date falls on Saturday. */
+  saturdayRateAgorot?: number | null;
   billingClientName?: string;
   active: boolean;
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A reusable lesson-type name (e.g. "פילאטיס", "מחול"), shared across
+ * every workplace so it never has to be re-typed for a new client. */
+export interface LessonTypeCatalogEntry {
+  name: string;
+  active: boolean;
 }
 
 export interface Group {

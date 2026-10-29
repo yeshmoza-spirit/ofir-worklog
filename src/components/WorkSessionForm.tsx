@@ -7,8 +7,9 @@ import {
   createWorkSession,
   updateWorkSession,
   getLastWorkSession,
+  suggestedRateAgorot,
 } from "../services/worklogService";
-import { calcDurationMinutes, formatDurationHebrew, todayIsoDate } from "../utils/time";
+import { calcDurationMinutes, formatDurationHebrew, isSaturday, todayIsoDate } from "../utils/time";
 import { calcAmountAgorot, formatAgorotAsILS, agorotToShekels, shekelsToAgorot } from "../utils/money";
 import { Card } from "./Card";
 
@@ -37,6 +38,9 @@ export function WorkSessionForm({ editingSession, onSaved, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
+  // Tracks whether the rate was typed by hand, so a later date change (e.g.
+  // into/out of Saturday) only re-suggests a rate the user hasn't touched.
+  const [rateManuallyEdited, setRateManuallyEdited] = useState(Boolean(editingSession));
 
   useEffect(() => {
     if (!workplaceId) {
@@ -49,8 +53,17 @@ export function WorkSessionForm({ editingSession, onSaved, onCancel }: Props) {
   function selectWorkplace(workplace: Workplace, keepGroup = false) {
     setWorkplaceId(workplace.id);
     if (!keepGroup) setGroupId(null);
-    setRateShekels(String(agorotToShekels(workplace.defaultRateAgorot)));
+    setRateShekels(String(agorotToShekels(suggestedRateAgorot(workplace, workDate))));
     setRateType(workplace.rateType);
+    setRateManuallyEdited(false);
+  }
+
+  function handleDateChange(newDate: string) {
+    setWorkDate(newDate);
+    if (rateManuallyEdited) return;
+    const wp = workplaces.find((w) => w.id === workplaceId);
+    if (!wp) return;
+    setRateShekels(String(agorotToShekels(suggestedRateAgorot(wp, newDate))));
   }
 
   function applyLastSession() {
@@ -76,6 +89,12 @@ export function WorkSessionForm({ editingSession, onSaved, onCancel }: Props) {
     startTime && endTime ? calcDurationMinutes(startTime, endTime, endsNextDay) : 0;
   const rateAgorot = rateShekels ? shekelsToAgorot(Number(rateShekels)) : 0;
   const amountAgorot = calcAmountAgorot(durationMinutes, rateAgorot, rateType);
+
+  const selectedWorkplace = workplaces.find((w) => w.id === workplaceId);
+  const showSaturdayRateHint =
+    !rateManuallyEdited &&
+    isSaturday(workDate) &&
+    selectedWorkplace?.saturdayRateAgorot != null;
 
   function handleSave() {
     setError(null);
@@ -228,7 +247,7 @@ export function WorkSessionForm({ editingSession, onSaved, onCancel }: Props) {
           type="date"
           className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 min-h-[44px] text-base bg-white"
           value={workDate}
-          onChange={(e) => setWorkDate(e.target.value)}
+          onChange={(e) => handleDateChange(e.target.value)}
         />
       </div>
 
@@ -272,8 +291,14 @@ export function WorkSessionForm({ editingSession, onSaved, onCancel }: Props) {
             step="0.5"
             className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 min-h-[44px] text-base bg-white"
             value={rateShekels}
-            onChange={(e) => setRateShekels(e.target.value)}
+            onChange={(e) => {
+              setRateShekels(e.target.value);
+              setRateManuallyEdited(true);
+            }}
           />
+          {showSaturdayRateHint && (
+            <p className="text-xs text-[var(--color-primary-dark)] mt-1">תעריף שבת הוחל אוטומטית</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">סוג תעריף</label>
